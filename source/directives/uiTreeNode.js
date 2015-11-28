@@ -423,7 +423,8 @@
                 if (scope.$$apply && !outOfBounds) {
                   scope.$treeScope.$apply(function () {
                     dragInfo.apply();
-                    scope.$treeScope.$callbacks.dropped(dragInfo.eventArgs(elements, pos));
+                    // Call the dest tree's dropped callback instead of the source one
+                    dragInfo.eventArgs(elements, pos).dest.nodesScope.$treeScope.$callbacks.dropped(dragInfo.eventArgs(elements, pos));
                   });
                 } else {
                   bindDrag();
