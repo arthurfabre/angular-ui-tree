@@ -456,7 +456,7 @@
             // and the 'max-depth' attribute in `ui-tree` or `ui-tree-nodes`.
             // the method can be overrided
             callbacks.accept = function (sourceNodeScope, destNodesScope, destIndex) {
-              return !(destNodesScope.nodropEnabled || destNodesScope.outOfDepth(sourceNodeScope));
+              return !(destNodesScope.nodropEnabled || destNodesScope.$treeScope.nodropEnabled || destNodesScope.outOfDepth(sourceNodeScope));
             };
 
             callbacks.beforeDrag = function (sourceNodeScope) {
@@ -736,7 +736,8 @@
                 targetElm,
                 isEmpty,
                 targetOffset,
-                targetBefore;
+                targetBefore,
+                isMapping;
 
               if (dragElm) {
                 e.preventDefault();
@@ -879,6 +880,7 @@
                   // check it's new position
                   targetNode = targetElm.scope();
                   isEmpty = false;
+                  isMapping = false;
                   if (!targetNode) {
                     return;
                   }
@@ -896,8 +898,13 @@
                     targetNode = targetNode.$nodeScope;
                   }
 
+                  // hack for mapping support
+                  if (targetNode.$type == 'uiTreeNodes' && targetElm.hasClass('source-elem')) {
+                    isMapping = true;
+                  }
+
                   if (targetNode.$type != 'uiTreeNode'
-                    && !isEmpty) { // Check if it is a uiTreeNode or it's an empty tree
+                    && !isEmpty && !isMapping) { // Check if it is a uiTreeNode or it's an empty tree
                     return;
                   }
 
@@ -913,6 +920,26 @@
                       targetNode.place(placeElm);
                       dragInfo.moveTo(targetNode.$nodesScope, targetNode.$nodesScope.childNodes(), 0);
                     }
+
+                  } else if (isMapping) {
+
+                    // Set the dest index to the next spot at the end of the list.
+                    // TODO - this isn't quite accurate (what if you drag something in between 2 children?) but is
+                    // consistent with how add children - we always append them to the end.
+                    // Works for now as this special case only deals with singeltons.
+                    // For some reason childNodesCount() != childNodes.length. Argh.
+                    var index = targetNode.childNodes.length;
+
+                    // Check the acceptance callback.
+                    if (targetNode.accept(scope, index)) {
+
+                      // Show a preview of the element as a child of ui-tree-nodes
+                      targetNode.$element.append(placeElm);
+
+                      // Actually move the element over
+                      dragInfo.moveTo(targetNode, targetNode.childNodes(), index);
+                    }
+
                   } else if (targetNode.dragEnabled()) { // drag enabled
                     targetElm = targetNode.$element; // Get the element of ui-tree-node
                     targetOffset = UiTreeHelper.offset(targetElm);
@@ -959,7 +986,8 @@
                 if (scope.$$apply && !outOfBounds) {
                   scope.$treeScope.$apply(function () {
                     dragInfo.apply();
-                    scope.$treeScope.$callbacks.dropped(dragInfo.eventArgs(elements, pos));
+                    // Call the dest tree's dropped callback instead of the source one
+                    dragInfo.eventArgs(elements, pos).dest.nodesScope.$treeScope.$callbacks.dropped(dragInfo.eventArgs(elements, pos));
                   });
                 } else {
                   bindDrag();
@@ -1092,7 +1120,9 @@
               };
             }
 
-            scope.$watch(attrs.maxDepth, function (val) {
+            scope.$watch(function () {
+              return attrs.maxDepth;
+            }, function (val) {
               if ((typeof val) == 'number') {
                 scope.maxDepth = val;
               }
@@ -1287,7 +1317,7 @@
 
                 // cloneEnabled and cross-tree so copy and do not remove from source
                 if (this.isClone() && this.isForeign()) {
-                  this.parent.insertNode(this.index, angular.copy(nodeData));
+                  this.parent.insertNode(this.index, this.sourceInfo.cloneModel);
                 } else { // Any other case, remove and reinsert
                   this.source.remove();
                   this.parent.insertNode(this.index, nodeData);
