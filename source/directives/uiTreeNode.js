@@ -200,7 +200,8 @@
                 targetElm,
                 isEmpty,
                 targetOffset,
-                targetBefore;
+                targetBefore,
+                isMapping;
 
               if (dragElm) {
                 e.preventDefault();
@@ -343,6 +344,7 @@
                   // check it's new position
                   targetNode = targetElm.scope();
                   isEmpty = false;
+                  isMapping = false;
                   if (!targetNode) {
                     return;
                   }
@@ -360,8 +362,13 @@
                     targetNode = targetNode.$nodeScope;
                   }
 
+                  // hack for mapping support
+                  if (targetNode.$type == 'uiTreeNodes' && targetElm.hasClass('source-elem')) {
+                    isMapping = true;
+                  }
+
                   if (targetNode.$type != 'uiTreeNode'
-                    && !isEmpty) { // Check if it is a uiTreeNode or it's an empty tree
+                    && !isEmpty && !isMapping) { // Check if it is a uiTreeNode or it's an empty tree
                     return;
                   }
 
@@ -377,6 +384,26 @@
                       targetNode.place(placeElm);
                       dragInfo.moveTo(targetNode.$nodesScope, targetNode.$nodesScope.childNodes(), 0);
                     }
+
+                  } else if (isMapping) {
+
+                    // Set the dest index to the next spot at the end of the list.
+                    // TODO - this isn't quite accurate (what if you drag something in between 2 children?) but is
+                    // consistent with how add children - we always append them to the end.
+                    // Works for now as this special case only deals with singeltons.
+                    // For some reason childNodesCount() != childNodes.length. Argh.
+                    var index = targetNode.childNodes.length;
+
+                    // Check the acceptance callback.
+                    if (targetNode.accept(scope, index)) {
+
+                      // Show a preview of the element as a child of ui-tree-nodes
+                      targetNode.$element.append(placeElm);
+
+                      // Actually move the element over
+                      dragInfo.moveTo(targetNode, targetNode.childNodes(), index);
+                    }
+
                   } else if (targetNode.dragEnabled()) { // drag enabled
                     targetElm = targetNode.$element; // Get the element of ui-tree-node
                     targetOffset = UiTreeHelper.offset(targetElm);
