@@ -516,6 +516,9 @@
 
             bindDrag = function () {
               element.bind('touchstart mousedown', function (e) {
+                // Prevent this event from making firefox + otter scroll
+                e.preventDefault();
+
                 dragDelay.exec(function () {
                   dragStartEvent(e);
                 }, scope.dragDelay || 0);
